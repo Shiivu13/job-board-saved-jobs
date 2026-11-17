@@ -1,0 +1,3 @@
+node_modules/
+# Saved jobs written by the running server. Each copy of the app keeps its own.
+data/

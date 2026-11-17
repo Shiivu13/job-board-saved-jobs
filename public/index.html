@@ -4,17 +4,131 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Job board</title>
+    <script>
+      // Apply a theme chosen earlier before the page paints, so it never flashes the wrong colours.
+      try {
+        const theme = localStorage.getItem("theme");
+        if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+      } catch {}
+    </script>
     <style>
-      body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 640px; padding: 16px; }
-      li { border: 1px solid #ddd; border-radius: 8px; list-style: none; margin: 8px 0; padding: 12px; }
-      ul { padding: 0; }
-      input { font-size: 16px; padding: 8px; width: 100%; box-sizing: border-box; }
+      /* Each colour is light-dark(light value, dark value). The browser picks one from
+         color-scheme: the device setting by default, or the choice made with the theme switch. */
+      :root {
+        color-scheme: light dark;
+        --bg: light-dark(#f5f6f8, #0f1115);
+        --surface: light-dark(#ffffff, #181b21);
+        --text: light-dark(#15171c, #eceef2);
+        --muted: light-dark(#5b6270, #9aa1ad);
+        --border: light-dark(#e1e4ea, #2a2f38);
+        --border-strong: light-dark(#c9ced8, #3a404b);
+        --accent: light-dark(#2563eb, #7aa2ff);
+        --accent-soft: light-dark(#e8efff, #1d2a4a);
+        --saved: light-dark(#17784a, #5fd39a);
+        --saved-soft: light-dark(#e5f4ec, #16352a);
+        --danger: light-dark(#b42318, #ff8a80);
+        --danger-soft: light-dark(#fdecea, #3a1d1c);
+        --shadow: 0 1px 2px light-dark(rgb(16 24 40 / 6%), rgb(0 0 0 / 30%));
+        --shadow-hover: 0 4px 14px light-dark(rgb(16 24 40 / 9%), rgb(0 0 0 / 45%));
+        --radius: 12px;
+        --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+      }
+      :root[data-theme="light"] { color-scheme: light; }
+      :root[data-theme="dark"] { color-scheme: dark; }
+      .theme-switching * { transition: none !important; }
+
+      * { box-sizing: border-box; }
+      body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.45; margin: 0; }
+      main { margin: 0 auto; max-width: 680px; padding: 32px 16px 64px; }
+
+      .top { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
+      header h1 { font-size: 1.9rem; letter-spacing: -0.02em; margin: 0; }
+
+      .theme { background: var(--surface); border: 1px solid var(--border); border-radius: 999px; display: flex; gap: 2px; padding: 3px; }
+      .theme button { border-color: transparent; color: var(--muted); font-size: 0.8rem; gap: 4px; padding: 5px 10px; }
+      .theme button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+      .theme svg { height: 14px; width: 14px; }
+      header p { color: var(--muted); margin: 4px 0 20px; }
+
+      input { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 10px; color: var(--text); font: inherit; font-size: 16px; padding: 12px 14px; transition: border-color 150ms ease, box-shadow 150ms ease; width: 100%; }
+      input::placeholder { color: var(--muted); }
+      input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); outline: none; }
+
+      #message:not(:empty) { background: var(--danger-soft); border-radius: 10px; color: var(--danger); margin: 12px 0 0; padding: 10px 14px; }
+      #message:empty { margin: 0; }
+
+      section { margin-top: 28px; }
+      h2 { align-items: center; display: flex; font-size: 1.05rem; gap: 8px; margin: 0 0 10px; }
+      .count { background: var(--accent-soft); border-radius: 999px; color: var(--accent); font-size: 0.8rem; font-variant-numeric: tabular-nums; min-width: 1.6em; padding: 1px 8px; text-align: center; }
+      .hint { border: 1px dashed var(--border-strong); border-radius: var(--radius); color: var(--muted); margin: 0; padding: 16px; text-align: center; }
+
+      ul { display: grid; gap: 10px; list-style: none; margin: 0; padding: 0; }
+      .job { align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); display: flex; gap: 16px; justify-content: space-between; padding: 14px 16px; transition: border-color 150ms ease, box-shadow 150ms ease; }
+      .job h3 { font-size: 1rem; margin: 0; }
+      .job .meta { color: var(--muted); font-size: 0.9rem; margin: 2px 0 8px; }
+      .stipend { background: var(--saved-soft); border-radius: 6px; color: var(--saved); display: inline-block; font-size: 0.85rem; font-weight: 600; margin: 0; padding: 2px 8px; }
+      .stipend span { font-weight: 400; }
+      #saved .job { border-left: 3px solid var(--saved); }
+      #saved .stipend { display: none; }
+      #saved .meta { margin-bottom: 0; }
+
+      button { align-items: center; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 999px; color: var(--text); cursor: pointer; display: inline-flex; flex-shrink: 0; font: inherit; font-size: 0.9rem; font-weight: 500; gap: 6px; padding: 7px 14px; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms var(--ease-out); }
+      button:active { transform: scale(0.97); }
+      button:focus-visible, h2:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+      button[aria-disabled="true"] { cursor: progress; opacity: 0.7; }
+      button svg { fill: transparent; height: 16px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; transition: fill 160ms ease; width: 16px; }
+      button.save[aria-pressed="true"] { background: var(--saved-soft); border-color: var(--saved); color: var(--saved); }
+      button.save[aria-pressed="true"] svg { fill: currentColor; }
+      button.remove { color: var(--muted); }
+
+      @media (hover: hover) and (pointer: fine) {
+        .job:hover { border-color: var(--border-strong); box-shadow: var(--shadow-hover); }
+        button:hover { border-color: var(--accent); color: var(--accent); }
+        button.save[aria-pressed="true"]:hover { border-color: var(--saved); color: var(--saved); }
+        .theme button:hover { border-color: transparent; color: var(--text); }
+        .theme button[aria-pressed="true"]:hover { color: var(--accent); }
+        button.remove:hover { border-color: var(--danger); color: var(--danger); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        button:active { transform: none; }
+      }
     </style>
   </head>
   <body>
-    <h1>Jobs</h1>
-    <input id="search" placeholder="Search by title, company or place" />
-    <ul id="jobs"></ul>
+    <main>
+      <header>
+        <div class="top">
+          <h1>Job board</h1>
+          <div class="theme" role="group" aria-label="Colour theme">
+            <button type="button" data-theme-choice="system" title="Follow the device setting">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg>Auto
+            </button>
+            <button type="button" data-theme-choice="light">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>Light
+            </button>
+            <button type="button" data-theme-choice="dark">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" /></svg>Dark
+            </button>
+          </div>
+        </div>
+        <p>Find an internship and save it for later.</p>
+        <input id="search" type="search" placeholder="Search by title, company or place" aria-label="Search jobs" />
+        <p id="message" role="alert"></p>
+      </header>
+
+      <section aria-labelledby="saved-heading">
+        <h2 id="saved-heading" tabindex="-1">Saved jobs <span id="saved-count" class="count">0</span></h2>
+        <p id="saved-empty" class="hint">Nothing saved yet. Press Save on a job to keep it here.</p>
+        <ul id="saved"></ul>
+      </section>
+
+      <section id="jobs-section" aria-labelledby="jobs-heading">
+        <h2 id="jobs-heading">All jobs</h2>
+        <p id="jobs-empty" class="hint" hidden>No jobs match your search.</p>
+        <ul id="jobs"></ul>
+      </section>
+    </main>
+
     <script type="module" src="/app.js"></script>
   </body>
 </html>
